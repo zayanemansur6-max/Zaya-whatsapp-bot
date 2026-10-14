@@ -24,7 +24,7 @@ async function startBot() {
     });
 
     if (!sock.authState.creds.registered) {
-        const phoneNumber = "258842477920"; 
+        const phoneNumber = "258842477929"; 
         
         setTimeout(async () => {
             try {
