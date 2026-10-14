@@ -25,8 +25,24 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds);
 
+    let pairingRequested = false;
+
     sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect } = update;
+        const { connection, lastDisconnect, qr } = update;
+
+        // O evento 'qr' dispara quando o socket está pronto para emparelhar por código
+        if (qr && !sock.authState.creds.registered && !pairingRequested) {
+            pairingRequested = true;
+            try {
+                const phoneNumber = "258842477929"; // Apenas dígitos com o código de país
+                const code = await sock.requestPairingCode(phoneNumber);
+                console.log(`\n========================================`);
+                console.log(`SEU CÓDIGO DE EMPARELHAMENTO: ${code}`);
+                console.log(`========================================\n`);
+            } catch (error) {
+                console.error("Erro ao solicitar código de emparelhamento:", error);
+            }
+        }
 
         if (connection === 'open') {
             console.log('✅ BOT CONECTADO COM SUCESSO AO WHATSAPP!');
@@ -42,30 +58,17 @@ async function startBot() {
         }
     });
 
-    if (!sock.authState.creds.registered) {
-        // Aguarda 8 segundos para estabilizar a conexão antes de pedir o código
-        setTimeout(async () => {
-            try {
-                const phoneNumber = "258842477929";
-                const code = await sock.requestPairingCode(phoneNumber);
-                console.log(`\n========================================`);
-                console.log(`SEU CÓDIGO DE EMPARELHAMENTO: ${code}`);
-                console.log(`========================================\n`);
-            } catch (error) {
-                console.error("Erro ao solicitar código:", error);
-            }
-        }, 8000);
-    }
-
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const m = messages[0];
         if (!m.message || m.key.fromMe) return;
 
         const sender = m.key.remoteJid;
         if (sender.endsWith('@s.whatsapp.net')) {
+            console.log(`📩 Mensagem recebida de: ${sender}`);
             await sock.sendMessage(sender, { 
                 text: '🤖 Olá! 🫡 Eu sou o Assistente do Sr. Zayane e eu é que estou online por enquanto.\n\nEle encontra-se offline no momento, mas assim que se conectar verá a sua mensagem. Obrigado! 😁' 
             });
+            console.log(`✉️ Resposta enviada para ${sender}`);
         }
     });
 }
