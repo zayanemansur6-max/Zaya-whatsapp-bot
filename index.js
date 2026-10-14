@@ -2,7 +2,6 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = requi
 const pino = require('pino');
 const express = require('express');
 
-// Servidor Web para manter o Render ativo
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -20,7 +19,8 @@ async function startBot() {
     const sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
-        logger: pino({ level: 'silent' })
+        logger: pino({ level: 'silent' }),
+        browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
     if (!sock.authState.creds.registered) {
@@ -35,7 +35,7 @@ async function startBot() {
             } catch (error) {
                 console.error("Erro ao gerar o código:", error);
             }
-        }, 4000);
+        }, 10000);
     }
 
     sock.ev.on('connection.update', (update) => {
@@ -47,26 +47,30 @@ async function startBot() {
                 startBot();
             }
         } else if (connection === 'open') {
-            console.log('Bot conectado com sucesso ao WhatsApp!');
+            console.log('✅ BOT CONECTADO COM SUCESSO AO WHATSAPP!');
         }
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    // Lógica para responder a QUALQUER mensagem apenas se o utilizador estiver ausente/offline
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const m = messages[0];
-        
-        // Ignora mensagens enviadas por você ou mensagens de status/grupos (se preferir ajustar depois)
-        if (!m.message || m.key.fromMe) return;
+        if (!m.message) return;
+
+        // Se a mensagem foi enviada pelo próprio bot/conta, ignora
+        if (m.key.fromMe) return;
 
         const sender = m.key.remoteJid;
 
-        // Responde a qualquer mensagem recebida no privado
+        // Verifica se é uma conversa privada
         if (sender.endsWith('@s.whatsapp.net')) {
+            console.log(`📩 Nova mensagem privada recebida de: ${sender}`);
+            
             await sock.sendMessage(sender, { 
-                text: '🤖Olá! 🫡 Eu sou o Assistente do Sr. Zayane. e eu é que estou online por enquanto \nEle encontra-se offline no momento, mas assim que se conectar verá a sua mensagem Obrigado😁!' 
+                text: '🤖 Olá! 🫡 Eu sou o Assistente do Sr. Zayane e eu é que estou online por enquanto.\n\nEle encontra-se offline no momento, mas assim que se conectar verá a sua mensagem. Obrigado! 😁' 
             });
+            
+            console.log(`✉️ Resposta enviada para ${sender}`);
         }
     });
 }
