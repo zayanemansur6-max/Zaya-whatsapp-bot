@@ -1,5 +1,18 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
+const express = require('express');
+
+// Servidor Web para manter o Render ativo
+const app = express();
+const PORT = process.env.PORT || 10000;
+
+app.get('/', (req, res) => {
+    res.send('Bot do Sr. Zayane está rodando online!');
+});
+
+app.listen(PORT, () => {
+    console.log(`Servidor Web rodando na porta ${PORT}`);
+});
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
@@ -10,10 +23,8 @@ async function startBot() {
         logger: pino({ level: 'silent' })
     });
 
-    // Se não estiver registrado, gera o código de emparelhamento por texto
     if (!sock.authState.creds.registered) {
-        // ATENÇÃO: Substitua abaixo pelo seu número completo com o código do país, sem espaços ou símbolos (Ex: 258841234567)
-        const phoneNumber = "258842477929"; 
+        const phoneNumber = "258842477920"; 
         
         setTimeout(async () => {
             try {
@@ -42,16 +53,20 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    // Resposta automática básica de teste para comandos
+    // Lógica para responder a QUALQUER mensagem apenas se o utilizador estiver ausente/offline
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const m = messages[0];
+        
+        // Ignora mensagens enviadas por você ou mensagens de status/grupos (se preferir ajustar depois)
         if (!m.message || m.key.fromMe) return;
 
-        const text = m.message.conversation || m.message.extendedTextMessage?.text;
         const sender = m.key.remoteJid;
 
-        if (text === '!ping') {
-            await sock.sendMessage(sender, { text: 'Olá! O bot da Zaya está online e a funcionar! 🤖' });
+        // Responde a qualquer mensagem recebida no privado
+        if (sender.endsWith('@s.whatsapp.net')) {
+            await sock.sendMessage(sender, { 
+                text: '🤖Olá! 🫡 Eu sou o Assistente do Sr. Zayane. e eu é que estou online por enquanto \nEle encontra-se offline no momento, mas assim que se conectar verá a sua mensagem Obrigado😁!' 
+            });
         }
     });
 }
