@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const express = require('express');
 
@@ -15,44 +15,57 @@ app.listen(PORT, () => {
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+    const { version } = await fetchLatestBaileysVersion();
     
     const sock = makeWASocket({
+        version,
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
         browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
+    sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect } = update;
+
+        if (connection === 'connecting') {
+            console.log('A ligar aos servidores do WhatsApp...');
+        }
+
+        if (connection === 'open') {
+            console.log('✅ BOT CONECTADO COM SUCESSO AO WHATSAPP!');
+        }
+
+        if (connection === 'close') {
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            console.log(`Conexão fechada (Código: ${statusCode}).`);
+            
+            // Só reconecta se já estiver registado/emparelhado
+            if (sock.authState.creds.registered && statusCode !== DisconnectReason.loggedOut) {
+                console.log('A reconectar em 5 segundos...');
+                setTimeout(startBot, 5000);
+            }
+        }
+    });
+
+    // Solicita o código apenas se ainda NÃO estiver registado
     if (!sock.authState.creds.registered) {
         const phoneNumber = "258842477929"; 
         
+        // Aguarda 6 segundos para estabilizar e pede o código
         setTimeout(async () => {
             try {
                 const code = await sock.requestPairingCode(phoneNumber);
                 console.log(`\n========================================`);
-                console.log(`SEU CÓDIGO DE EMPARELHAMENTO: ${code}`);
+                console.log(`SEU NOVO CÓDIGO DE EMPARELHAMENTO: ${code}`);
                 console.log(`========================================\n`);
             } catch (error) {
-                console.error("Erro ao gerar o código:", error);
+                console.error("Erro ao solicitar código de emparelhamento:", error);
             }
-        }, 10000);
+        }, 6000);
     }
-
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update;
-        if (connection === 'close') {
-            const statusCode = lastDisconnect?.error?.output?.statusCode;
-            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-            console.log(`Conexão fechada (Código: ${statusCode}). A reconectar em 3s...`);
-            if (shouldReconnect) {
-                setTimeout(startBot, 3000);
-            }
-        } else if (connection === 'open') {
-            console.log('✅ BOT CONECTADO COM SUCESSO AO WHATSAPP!');
-        }
-    });
-
-    sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const m = messages[0];
